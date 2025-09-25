@@ -344,14 +344,20 @@ class WatermarkPanel:
 
     def on_image_changed(self, value=None):
         """图片水印设置改变事件处理"""
-        # 更新配置对象
-        self.image_watermark.image_path = self.image_path_var.get()
-        self.image_watermark.width = self.image_width.get() if self.image_width.get() > 0 else None
-        self.image_watermark.height = self.image_height.get() if self.image_height.get() > 0 else None
-        self.image_watermark.opacity = self.image_opacity.get()
-        self.image_watermark.keep_aspect_ratio = self.keep_aspect.get()
+        try:
+            # 更新配置对象，添加错误处理
+            self.image_watermark.image_path = self.image_path_var.get()
+            width_val = self.image_width.get()
+            height_val = self.image_height.get()
+            self.image_watermark.width = width_val if width_val > 0 else None
+            self.image_watermark.height = height_val if height_val > 0 else None
+            self.image_watermark.opacity = self.image_opacity.get()
+            self.image_watermark.keep_aspect_ratio = self.keep_aspect.get()
 
-        self.on_watermark_changed()
+            self.on_watermark_changed()
+        except (tk.TclError, ValueError):
+            # 忽略输入框为空或无效值的错误
+            pass
 
     def on_image_changed_trace(self, *args):
         """图片设置trace回调"""
@@ -359,13 +365,17 @@ class WatermarkPanel:
 
     def on_layout_changed(self, value=None):
         """布局设置改变事件处理"""
-        # 更新配置对象
-        self.watermark_layout.x_offset = self.x_offset.get()
-        self.watermark_layout.y_offset = self.y_offset.get()
-        self.watermark_layout.rotation = self.rotation.get()
-        self.watermark_layout.margin = self.margin.get()
+        try:
+            # 更新配置对象，添加错误处理
+            self.watermark_layout.x_offset = self.x_offset.get()
+            self.watermark_layout.y_offset = self.y_offset.get()
+            self.watermark_layout.rotation = self.rotation.get()
+            self.watermark_layout.margin = self.margin.get()
 
-        self.on_watermark_changed()
+            self.on_watermark_changed()
+        except (tk.TclError, ValueError):
+            # 忽略输入框为空或无效值的错误
+            pass
 
     def on_layout_changed_trace(self, *args):
         """布局设置trace回调"""

@@ -9,6 +9,7 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import glob
 from typing import List, Optional
+from pathlib import Path
 
 from photo_watermark.core.image_processor import ImageProcessor
 from photo_watermark.core.batch_processor import BatchProcessor
@@ -185,12 +186,8 @@ class MainWindow:
 
     def get_current_watermark_config(self) -> dict:
         """获取当前水印配置"""
-        return {
-            'type': self.current_watermark_type.value if hasattr(self.current_watermark_type, 'value') else str(self.current_watermark_type),
-            'text_config': self.text_watermark.__dict__,
-            'image_config': self.image_watermark.__dict__,
-            'layout': {k: (v.value if hasattr(v, 'value') else v) for k, v in self.watermark_layout.__dict__.items()}
-        }
+        # 从水印面板获取最新配置
+        return self.watermark_panel.get_watermark_config()
 
     # 事件处理方法
     def on_image_selected(self, image_path: str, index: int):
@@ -489,18 +486,34 @@ class MainWindow:
                 # 处理单张图片
                 processor = ImageProcessor()
                 if processor.load_image(image_path):
+                    print(f"成功加载图片: {image_path}")  # 调试信息
+
                     # 应用水印
-                    if watermark_config['type'] == 'text':
+                    print(f"水印配置类型: {watermark_config['type']}")  # 调试信息
+                    if watermark_config['type'] == WatermarkType.TEXT:
+                        print("应用文本水印...")  # 调试信息
                         self.apply_text_watermark_to_processor(processor, watermark_config)
+                    elif watermark_config['type'] == WatermarkType.IMAGE:
+                        print("应用图片水印...")  # 调试信息
+                        # TODO: 实现图片水印批量处理
+                        pass
+                    else:
+                        print(f"未知水印类型: {watermark_config['type']}")  # 调试信息
 
                     # 生成输出文件名
                     input_file = Path(image_path)
                     output_filename = input_file.stem + naming_rule['suffix'] + naming_rule['format']
                     output_path = os.path.join(output_dir, output_filename)
+                    print(f"保存到: {output_path}")  # 调试信息
 
                     # 保存图片
                     if processor.save_image(output_path):
+                        print(f"保存成功: {output_path}")  # 调试信息
                         success_count += 1
+                    else:
+                        print(f"保存失败: {output_path}")  # 调试信息
+                else:
+                    print(f"加载图片失败: {image_path}")  # 调试信息
 
             except Exception as e:
                 print(f"处理图片 {image_path} 失败: {e}")
