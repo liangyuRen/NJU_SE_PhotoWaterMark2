@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "photo-watermark-2"
+version = "1.0.0"
+description = "图片水印处理应用程序"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "NJU SE Course"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Graphics",
+]
+keywords = ["watermark", "image", "processing", "desktop", "application"]
+dependencies = [
+    "Pillow>=9.0.0",
+]
+requires-python = ">=3.7"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "pyinstaller>=5.0",
+]
+pyqt5 = ["PyQt5>=5.15.0"]
+pyqt6 = ["PyQt6>=6.2.0"]
+
+[project.scripts]
+photo-watermark = "photo_watermark.main:main"
+
+[project.urls]
+Homepage = "https://github.com/your-username/NJU_SE_PhotoWaterMark2"
+Repository = "https://github.com/your-username/NJU_SE_PhotoWaterMark2.git"
+Issues = "https://github.com/your-username/NJU_SE_PhotoWaterMark2/issues"
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+    ".tox",
+    ".venv",
+]
