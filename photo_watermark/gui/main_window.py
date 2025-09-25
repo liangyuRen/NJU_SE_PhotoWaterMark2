@@ -242,6 +242,16 @@ class MainWindow:
             messagebox.showwarning("警告", "请先选择要导出的图片")
             return
 
+        # 获取当前图片路径
+        current_image_path = self.image_list[self.current_image_index]
+
+        # 生成默认输出路径（在原文件夹，添加_watermarked后缀）
+        dir_path = os.path.dirname(current_image_path)
+        filename = os.path.basename(current_image_path)
+        name, ext = os.path.splitext(filename)
+        default_filename = f"{name}_watermarked{ext}"
+        default_path = os.path.join(dir_path, default_filename)
+
         filetypes = [
             ("PNG文件", "*.png"),
             ("JPEG文件", "*.jpg"),
@@ -251,7 +261,9 @@ class MainWindow:
         file_path = filedialog.asksaveasfilename(
             title="保存图片",
             filetypes=filetypes,
-            defaultextension=".png"
+            defaultextension=ext,
+            initialdir=dir_path,
+            initialfile=default_filename
         )
 
         if file_path:
@@ -263,7 +275,13 @@ class MainWindow:
             messagebox.showwarning("警告", "请先导入要处理的图片")
             return
 
-        folder = filedialog.askdirectory(title="选择输出文件夹")
+        # 默认导出到第一个图片的文件夹
+        default_dir = os.path.dirname(self.image_list[0]) if self.image_list else None
+
+        folder = filedialog.askdirectory(
+            title="选择输出文件夹",
+            initialdir=default_dir
+        )
         if folder:
             self.batch_export_images(folder)
 
