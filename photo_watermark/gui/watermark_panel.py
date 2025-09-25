@@ -237,7 +237,7 @@ class WatermarkPanel:
 
         # 自定义位置
         ttk.Label(self.position_frame, text="X偏移:").grid(row=4, column=0, sticky='w', padx=5, pady=2)
-        self.x_offset = tk.IntVar(value=50)
+        self.x_offset = tk.IntVar(value=0)
         ttk.Entry(
             self.position_frame,
             textvariable=self.x_offset,
@@ -245,7 +245,7 @@ class WatermarkPanel:
         ).grid(row=4, column=1, sticky='w', padx=5, pady=2)
 
         ttk.Label(self.position_frame, text="Y偏移:").grid(row=5, column=0, sticky='w', padx=5, pady=2)
-        self.y_offset = tk.IntVar(value=50)
+        self.y_offset = tk.IntVar(value=0)
         ttk.Entry(
             self.position_frame,
             textvariable=self.y_offset,
@@ -413,6 +413,12 @@ class WatermarkPanel:
         self.watermark_layout.position = position
         self.position.set(position.value)
 
+        # 重置偏移量为0，使用纯预设位置
+        self.x_offset.set(0)
+        self.y_offset.set(0)
+        self.watermark_layout.x_offset = 0
+        self.watermark_layout.y_offset = 0
+
         # 高亮选中的按钮
         for pos, btn in self.position_buttons.items():
             if pos == position:
@@ -437,3 +443,51 @@ class WatermarkPanel:
         """加载水印配置"""
         # TODO: 实现配置加载功能
         pass
+
+    def reset_to_defaults(self):
+        """重置所有水印设置为默认值"""
+        # 重置文本水印设置
+        self.text_watermark = TextWatermark()
+        self.image_watermark = ImageWatermark()
+        self.watermark_layout = WatermarkLayout()
+
+        # 重置界面变量
+        self.watermark_type.set(WatermarkType.TEXT.value)
+        self.text_content.set(self.text_watermark.text)
+        self.font_size.set(self.text_watermark.font_size)
+        self.opacity.set(self.text_watermark.opacity)
+        self.position.set(self.watermark_layout.position.value)
+
+        # 重置图片水印设置
+        self.image_path_var.set('')
+        self.image_width.set(100)
+        self.image_height.set(100)
+        self.keep_aspect.set(True)
+        self.image_opacity.set(128)
+
+        # 重置位置和高级设置
+        self.x_offset.set(0)
+        self.y_offset.set(0)
+        self.rotation.set(0.0)
+        self.margin.set(20)
+
+        # 重置字体样式
+        self.font_bold.set(False)
+        self.font_italic.set(False)
+
+        # 更新标签显示
+        self.font_size_label.config(text=f"{self.font_size.get()}px")
+        self.opacity_label.config(text=f"{self.opacity.get()}")
+
+        # 重置位置按钮状态
+        for pos, btn in self.position_buttons.items():
+            if pos == self.watermark_layout.position:
+                btn.state(['pressed'])
+            else:
+                btn.state(['!pressed'])
+
+        # 重新显示对应的设置面板
+        self.on_type_changed()
+
+        # 触发回调
+        self.on_watermark_changed()

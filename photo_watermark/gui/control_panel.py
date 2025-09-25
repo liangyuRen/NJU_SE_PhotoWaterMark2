@@ -17,7 +17,9 @@ class ControlPanel:
         parent: tk.Widget,
         on_import_images: Callable[[], None],
         on_export_current: Callable[[], None],
-        on_batch_export: Callable[[], None]
+        on_batch_export: Callable[[], None],
+        on_clear_list: Callable[[], None],
+        on_reset_watermark: Callable[[], None]
     ):
         """
         初始化控制面板
@@ -27,11 +29,15 @@ class ControlPanel:
             on_import_images: 导入图片回调
             on_export_current: 导出当前图片回调
             on_batch_export: 批量导出回调
+            on_clear_list: 清空列表回调
+            on_reset_watermark: 重置水印回调
         """
         self.parent = parent
         self.on_import_images = on_import_images
         self.on_export_current = on_export_current
         self.on_batch_export = on_batch_export
+        self.on_clear_list_callback = on_clear_list
+        self.on_reset_watermark_callback = on_reset_watermark
 
         self.create_widgets()
         self.setup_layout()
@@ -66,7 +72,7 @@ class ControlPanel:
         self.clear_button = ttk.Button(
             self.main_frame,
             text="清空列表",
-            command=self.on_clear_list
+            command=self.on_clear_list_callback
         )
 
         # 分隔符
@@ -76,7 +82,7 @@ class ControlPanel:
         self.reset_button = ttk.Button(
             self.main_frame,
             text="重置水印",
-            command=self.on_reset_watermark
+            command=self.on_reset_watermark_callback
         )
 
     def setup_layout(self):
@@ -93,15 +99,6 @@ class ControlPanel:
         self.clear_button.pack(side=tk.LEFT, padx=(0, 5))
         self.reset_button.pack(side=tk.LEFT)
 
-    def on_clear_list(self):
-        """清空列表事件处理"""
-        # TODO: 实现清空图片列表功能
-        pass
-
-    def on_reset_watermark(self):
-        """重置水印事件处理"""
-        # TODO: 实现重置水印设置功能
-        pass
 
     def set_button_state(self, button_name: str, enabled: bool):
         """

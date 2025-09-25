@@ -97,7 +97,9 @@ class MainWindow:
             self.bottom_panel,
             self.on_import_images,
             self.on_export_current,
-            self.on_batch_export
+            self.on_batch_export,
+            self.on_clear_list,
+            self.on_reset_watermark
         )
 
         # 创建状态栏
@@ -170,14 +172,40 @@ class MainWindow:
     def save_settings(self):
         """保存应用设置"""
         try:
+            # 获取可序列化的水印配置
+            watermark_config = self.get_serializable_watermark_config()
+
             settings = {
                 'window_geometry': self.root.geometry(),
-                'last_watermark_config': self.get_current_watermark_config(),
+                'last_watermark_config': watermark_config,
                 # 其他设置...
             }
             self.config.save_settings(settings)
         except Exception as e:
             print(f"保存设置失败: {e}")
+
+    def get_serializable_watermark_config(self) -> dict:
+        """获取可序列化的水印配置"""
+        config = self.get_current_watermark_config()
+
+        # 转换枚举类型为字符串
+        serializable_config = {}
+        for key, value in config.items():
+            if hasattr(value, 'value'):  # 枚举类型
+                serializable_config[key] = value.value
+            elif isinstance(value, dict):
+                # 递归处理字典中的枚举
+                serializable_dict = {}
+                for k, v in value.items():
+                    if hasattr(v, 'value'):
+                        serializable_dict[k] = v.value
+                    else:
+                        serializable_dict[k] = v
+                serializable_config[key] = serializable_dict
+            else:
+                serializable_config[key] = value
+
+        return serializable_config
 
     def update_status(self, message: str):
         """更新状态栏"""
@@ -281,6 +309,49 @@ class MainWindow:
         )
         if folder:
             self.batch_export_images(folder)
+
+    def on_clear_list(self):
+        """清空图片列表事件处理"""
+        if self.image_list:
+            # 确认对话框
+            result = messagebox.askyesno(
+                "确认清空",
+                f"确定要清空所有图片吗？\n当前有 {len(self.image_list)} 张图片。"
+            )
+            if result:
+                # 清空列表
+                self.image_list.clear()
+                self.current_image_index = -1
+
+                # 清空界面
+                self.image_panel.clear_list()
+                self.image_processor.current_image = None
+                self.image_processor.original_image = None
+
+                # 更新状态
+                self.update_status("图片列表已清空")
+                messagebox.showinfo("完成", "图片列表已清空")
+        else:
+            messagebox.showinfo("提示", "图片列表已经是空的")
+
+    def on_reset_watermark(self):
+        """重置水印设置事件处理"""
+        result = messagebox.askyesno(
+            "确认重置",
+            "确定要重置所有水印设置为默认值吗？"
+        )
+        if result:
+            # 重置水印面板设置
+            self.watermark_panel.reset_to_defaults()
+
+            # 如果有当前图片，重新加载原始图片
+            if self.current_image_index >= 0 and self.current_image_index < len(self.image_list):
+                current_path = self.image_list[self.current_image_index]
+                self.image_processor.load_image(current_path)
+                self.image_panel.update_preview(self.image_processor.get_current_image())
+
+            self.update_status("水印设置已重置")
+            messagebox.showinfo("完成", "水印设置已重置为默认值")
 
     def on_drop_files(self, event):
         """拖拽文件事件处理"""
