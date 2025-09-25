@@ -13,8 +13,8 @@ class ImageProcessor:
     """图像处理器类"""
 
     SUPPORTED_FORMATS = {
-        'input': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'],
-        'output': ['.jpg', '.jpeg', '.png']
+        'input': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'],
+        'output': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']
     }
 
     def __init__(self):
@@ -221,8 +221,22 @@ class ImageProcessor:
                     background.save(output_path, 'JPEG', quality=quality)
                 else:
                     self.current_image.save(output_path, 'JPEG', quality=quality)
-            else:
+            elif ext in ['.png']:
                 # PNG支持透明度
+                self.current_image.save(output_path, 'PNG')
+            elif ext in ['.bmp']:
+                # BMP不支持透明度，转换为RGB
+                if self.current_image.mode == 'RGBA':
+                    background = Image.new('RGB', self.current_image.size, (255, 255, 255))
+                    background.paste(self.current_image, mask=self.current_image.split()[-1])
+                    background.save(output_path, 'BMP')
+                else:
+                    self.current_image.save(output_path, 'BMP')
+            elif ext in ['.tiff', '.tif']:
+                # TIFF支持透明度
+                self.current_image.save(output_path, 'TIFF')
+            else:
+                # 默认保存为PNG
                 self.current_image.save(output_path, 'PNG')
 
             return True

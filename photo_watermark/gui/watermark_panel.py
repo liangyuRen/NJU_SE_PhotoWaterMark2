@@ -40,6 +40,10 @@ class WatermarkPanel:
         self.opacity = tk.IntVar(value=self.text_watermark.opacity)
         self.position = tk.StringVar(value=self.watermark_layout.position.value)
 
+        # 预览设置
+        self.show_preview = tk.BooleanVar(value=True)
+        self.show_position_indicator = tk.BooleanVar(value=True)
+
         self.create_widgets()
         self.setup_layout()
         self.bind_events()
@@ -81,6 +85,10 @@ class WatermarkPanel:
         # 高级设置框架
         self.advanced_frame = ttk.LabelFrame(self.main_frame, text="高级设置")
         self.create_advanced_widgets()
+
+        # 预览设置框架
+        self.preview_frame = ttk.LabelFrame(self.main_frame, text="预览设置")
+        self.create_preview_widgets()
 
     def create_text_widgets(self):
         """创建文本水印设置组件"""
@@ -277,6 +285,24 @@ class WatermarkPanel:
         # 配置网格权重
         self.advanced_frame.grid_columnconfigure(1, weight=1)
 
+    def create_preview_widgets(self):
+        """创建预览设置组件"""
+        # 显示水印预览
+        ttk.Checkbutton(
+            self.preview_frame,
+            text="显示水印预览",
+            variable=self.show_preview,
+            command=self.on_preview_changed
+        ).grid(row=0, column=0, sticky='w', padx=5, pady=2)
+
+        # 显示可拖拽水印
+        ttk.Checkbutton(
+            self.preview_frame,
+            text="显示可拖拽水印叠加层",
+            variable=self.show_position_indicator,
+            command=self.on_preview_changed
+        ).grid(row=1, column=0, sticky='w', padx=5, pady=2)
+
     def setup_layout(self):
         """设置布局"""
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -286,7 +312,8 @@ class WatermarkPanel:
         self.text_frame.pack(fill=tk.X, pady=(0, 5))
         self.image_frame.pack(fill=tk.X, pady=(0, 5))
         self.position_frame.pack(fill=tk.X, pady=(0, 5))
-        self.advanced_frame.pack(fill=tk.X)
+        self.advanced_frame.pack(fill=tk.X, pady=(0, 5))
+        self.preview_frame.pack(fill=tk.X)
 
         # 类型选择布局
         self.text_radio.pack(anchor='w', padx=5, pady=2)
@@ -381,6 +408,11 @@ class WatermarkPanel:
         """布局设置trace回调"""
         self.on_layout_changed()
 
+    def on_preview_changed(self):
+        """预览设置改变事件处理"""
+        # 触发水印更新
+        self.on_watermark_changed()
+
     def on_choose_color(self):
         """选择颜色事件处理"""
         color = colorchooser.askcolor(
@@ -441,8 +473,101 @@ class WatermarkPanel:
 
     def load_watermark_config(self, config: dict):
         """加载水印配置"""
-        # TODO: 实现配置加载功能
-        pass
+        try:
+            # 加载水印类型
+            watermark_type = config.get('type', WatermarkType.TEXT.value)
+            if isinstance(watermark_type, str):
+                self.watermark_type.set(watermark_type)
+            else:
+                self.watermark_type.set(watermark_type.value)
+
+            # 加载文本配置
+            text_config = config.get('text_config', {})
+            if text_config:
+                self.text_content.set(text_config.get('text', 'Sample Watermark'))
+                self.font_size.set(text_config.get('font_size', 36))
+                self.opacity.set(text_config.get('opacity', 128))
+
+                # 设置颜色
+                color = text_config.get('color', (255, 255, 255))
+                if isinstance(color, (list, tuple)) and len(color) == 3:
+                    self.text_watermark.color = tuple(color)
+
+                # 设置字体样式
+                self.font_bold.set(text_config.get('font_bold', False))
+                self.font_italic.set(text_config.get('font_italic', False))
+
+                # 更新文本水印对象
+                self.text_watermark.text = self.text_content.get()
+                self.text_watermark.font_size = self.font_size.get()
+                self.text_watermark.opacity = self.opacity.get()
+                self.text_watermark.font_bold = self.font_bold.get()
+                self.text_watermark.font_italic = self.font_italic.get()
+
+            # 加载图片配置
+            image_config = config.get('image_config', {})
+            if image_config:
+                self.image_path_var.set(image_config.get('image_path', ''))
+                width = image_config.get('width', 100)
+                height = image_config.get('height', 100)
+                if width is not None:
+                    self.image_width.set(width)
+                if height is not None:
+                    self.image_height.set(height)
+                self.image_opacity.set(image_config.get('opacity', 128))
+                self.keep_aspect.set(image_config.get('keep_aspect_ratio', True))
+
+                # 更新图片水印对象
+                self.image_watermark.image_path = self.image_path_var.get()
+                self.image_watermark.width = width
+                self.image_watermark.height = height
+                self.image_watermark.opacity = self.image_opacity.get()
+                self.image_watermark.keep_aspect_ratio = self.keep_aspect.get()
+
+            # 加载布局配置
+            layout_config = config.get('layout', {})
+            if layout_config:
+                # 设置位置
+                position = layout_config.get('position', WatermarkPosition.BOTTOM_RIGHT.value)
+                if isinstance(position, str):
+                    position_enum = WatermarkPosition(position)
+                else:
+                    position_enum = position
+
+                self.watermark_layout.position = position_enum
+                self.position.set(position_enum.value)
+
+                # 设置偏移和其他布局属性
+                self.x_offset.set(layout_config.get('x_offset', 0))
+                self.y_offset.set(layout_config.get('y_offset', 0))
+                self.rotation.set(layout_config.get('rotation', 0.0))
+                self.margin.set(layout_config.get('margin', 20))
+
+                # 更新布局对象
+                self.watermark_layout.x_offset = self.x_offset.get()
+                self.watermark_layout.y_offset = self.y_offset.get()
+                self.watermark_layout.rotation = self.rotation.get()
+                self.watermark_layout.margin = self.margin.get()
+
+            # 更新界面显示
+            self.font_size_label.config(text=f"{self.font_size.get()}px")
+            self.opacity_label.config(text=f"{self.opacity.get()}")
+
+            # 更新位置按钮状态
+            for pos, btn in self.position_buttons.items():
+                if pos == self.watermark_layout.position:
+                    btn.state(['pressed'])
+                else:
+                    btn.state(['!pressed'])
+
+            # 显示对应的设置面板
+            self.on_type_changed()
+
+            # 触发更新
+            self.on_watermark_changed()
+
+        except Exception as e:
+            print(f"加载水印配置失败: {e}")
 
     def reset_to_defaults(self):
         """重置所有水印设置为默认值"""

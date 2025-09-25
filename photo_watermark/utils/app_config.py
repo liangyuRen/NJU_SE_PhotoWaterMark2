@@ -232,3 +232,35 @@ class AppConfig:
         # 保存配置
         config['recent_files'] = recent_files
         self.save_settings(config)
+
+    def load_templates(self) -> Dict[str, Any]:
+        """
+        加载所有模板
+
+        Returns:
+            Dict[str, Any]: 模板字典，键为模板名称，值为模板数据
+        """
+        templates = {}
+        for template_name in self.list_templates():
+            template_data = self.load_template(template_name)
+            if template_data:
+                templates[template_name] = template_data
+        return templates
+
+    def save_templates(self, templates: Dict[str, Any]):
+        """
+        批量保存模板
+
+        Args:
+            templates: 模板字典
+        """
+        # 先删除所有现有模板文件
+        for file_path in self.templates_dir.glob("*.json"):
+            try:
+                file_path.unlink()
+            except Exception as e:
+                print(f"删除旧模板文件失败: {e}")
+
+        # 保存新的模板
+        for name, template_data in templates.items():
+            self.save_template(name, template_data)

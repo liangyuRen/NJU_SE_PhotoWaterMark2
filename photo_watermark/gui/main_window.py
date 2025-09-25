@@ -5,7 +5,7 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import os
 import glob
 from typing import List, Optional
@@ -22,6 +22,7 @@ from photo_watermark.utils.app_config import AppConfig
 from .image_panel import ImagePanel
 from .watermark_panel import WatermarkPanel
 from .control_panel import ControlPanel
+from .export_panel import ExportSettingsPanel
 
 
 class MainWindow:
@@ -51,6 +52,9 @@ class MainWindow:
         self.image_watermark = ImageWatermark()
         self.watermark_layout = WatermarkLayout()
         self.current_watermark_type = WatermarkType.TEXT
+
+        # 预览设置
+        self.show_watermark_preview = tk.BooleanVar(value=True)
 
         # 创建界面
         self.create_widgets()
@@ -82,13 +86,37 @@ class MainWindow:
 
         # 创建左侧面板（图片列表和预览）
         self.left_panel = ttk.Frame(self.main_frame)
-        self.image_panel = ImagePanel(self.left_panel, self.on_image_selected)
+        self.image_panel = ImagePanel(self.left_panel, self.on_image_selected, self.on_watermark_position_changed)
 
-        # 创建右侧面板（水印设置）
+        # 设置拖拽完成回调
+        self.image_panel.on_watermark_drag_finished = self.on_watermark_drag_finished
+
+        # 创建右侧面板（水印设置和导出设置）
         self.right_panel = ttk.Frame(self.main_frame)
+
+        # 创建右侧滚动容器
+        self.right_canvas = tk.Canvas(self.right_panel)
+        self.right_scrollbar = ttk.Scrollbar(self.right_panel, orient="vertical", command=self.right_canvas.yview)
+        self.right_scrollable_frame = ttk.Frame(self.right_canvas)
+
+        self.right_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.right_canvas.configure(scrollregion=self.right_canvas.bbox("all"))
+        )
+
+        self.right_canvas.create_window((0, 0), window=self.right_scrollable_frame, anchor="nw")
+        self.right_canvas.configure(yscrollcommand=self.right_scrollbar.set)
+
+        # 创建水印设置面板
         self.watermark_panel = WatermarkPanel(
-            self.right_panel,
+            self.right_scrollable_frame,
             self.on_watermark_changed
+        )
+
+        # 创建导出设置面板
+        self.export_panel = ExportSettingsPanel(
+            self.right_scrollable_frame,
+            self.on_export_settings_changed
         )
 
         # 创建底部控制面板
@@ -150,15 +178,28 @@ class MainWindow:
         self.bottom_panel.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 0))
 
+        # 配置右侧滚动面板
+        self.right_canvas.pack(side="left", fill="both", expand=True)
+        self.right_scrollbar.pack(side="right", fill="y")
+
         # 设置面板尺寸
-        self.right_panel.configure(width=300)
+        self.right_panel.configure(width=350)  # 增加宽度以容纳更多内容
 
     def bind_events(self):
         """绑定事件"""
-        # 拖拽支持 - 暂时注释掉，因为需要额外的拖拽库
-        # self.root.drop_target_register(tk.DND_FILES)
-        # self.root.dnd_bind('<<Drop>>', self.on_drop_files)
-        pass
+        # 简化的拖拽支持：监听窗口事件
+        self.root.bind('<Button-1>', self.on_window_click)
+
+        # 尝试实现Windows拖拽功能
+        try:
+            # Windows特定的拖拽功能
+            self.setup_drag_drop()
+        except:
+            # 如果拖拽功能不可用，只显示提示
+            pass
+
+        # 设置初始状态提示
+        self.update_status("就绪 - 使用菜单、按钮或快捷键操作")
 
     def load_settings(self):
         """加载应用设置"""
@@ -230,12 +271,54 @@ class MainWindow:
         if self.current_image_index >= 0:
             self.update_preview()
 
+    def on_export_settings_changed(self):
+        """导出设置改变事件处理"""
+        # 导出设置改变时可以在这里添加逻辑
+        pass
+
+    def on_watermark_position_changed(self, x: int, y: int):
+        """水印位置改变事件处理"""
+        # 更新水印面板中的偏移设置
+        if hasattr(self, 'watermark_panel'):
+            self.watermark_panel.x_offset.set(x)
+            self.watermark_panel.y_offset.set(y)
+            self.watermark_panel.watermark_layout.x_offset = x
+            self.watermark_panel.watermark_layout.y_offset = y
+
+            # 设置为自定义位置
+            from photo_watermark.core.watermark import WatermarkPosition
+            self.watermark_panel.watermark_layout.position = WatermarkPosition.CUSTOM
+
+            # ⚠️ 不要在拖拽时更新预览！这会导致水印重置到原位置
+            # 只在拖拽结束时才需要更新预览中的实际水印
+            # self.update_preview()
+
+            # 更新状态栏
+            self.update_status(f"水印位置: ({x}, {y})")
+
+    def on_watermark_drag_finished(self):
+        """水印拖拽完成事件处理"""
+        # 拖拽结束时，只更新实际水印，不重新创建叠加层
+        if self.current_image_index >= 0 and self.image_processor.current_image:
+            show_watermark = self.watermark_panel.show_preview.get()
+            if show_watermark:
+                # 重置图片并重新应用水印到新位置
+                self.image_processor.reset_image()
+                self.apply_current_watermark()
+
+                # 只更新预览图片，保持叠加层位置
+                result_image = self.image_processor.get_current_image()
+                if result_image and self.image_panel:
+                    self.image_panel.update_preview_image_only(result_image)
+
     def on_import_images(self):
         """导入图片事件处理"""
         filetypes = [
-            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff"),
+            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff *.tif"),
             ("JPEG文件", "*.jpg *.jpeg"),
             ("PNG文件", "*.png"),
+            ("BMP文件", "*.bmp"),
+            ("TIFF文件", "*.tiff *.tif"),
             ("所有文件", "*.*")
         ]
 
@@ -270,24 +353,54 @@ class MainWindow:
         # 获取当前图片路径
         current_image_path = self.image_list[self.current_image_index]
 
-        # 生成默认输出路径（在原文件夹，添加_watermarked后缀）
-        dir_path = os.path.dirname(current_image_path)
-        filename = os.path.basename(current_image_path)
-        name, ext = os.path.splitext(filename)
-        default_filename = f"{name}_watermarked{ext}"
-        default_path = os.path.join(dir_path, default_filename)
+        # 为防止覆盖原图，默认禁止导出到原文件夹
+        # 使用桌面或文档文件夹作为默认导出位置
+        import os
+        from pathlib import Path
+
+        try:
+            # 优先使用桌面
+            desktop_path = os.path.join(Path.home(), 'Desktop')
+            if not os.path.exists(desktop_path):
+                # 如果桌面不存在，使用文档文件夹
+                desktop_path = os.path.join(Path.home(), 'Documents')
+                if not os.path.exists(desktop_path):
+                    # 最后使用用户主目录
+                    desktop_path = str(Path.home())
+        except:
+            desktop_path = str(Path.home())
+
+        # 使用导出设置生成文件名
+        export_settings = self.export_panel.get_export_settings()
+        default_filename = self.export_panel.generate_filename(current_image_path)
 
         filetypes = [
             ("PNG文件", "*.png"),
             ("JPEG文件", "*.jpg"),
+            ("BMP文件", "*.bmp"),
+            ("TIFF文件", "*.tiff"),
             ("所有文件", "*.*")
         ]
+
+        # 根据导出设置确定默认扩展名
+        export_settings = self.export_panel.get_export_settings()
+        output_format = export_settings['format']['output_format']
+        if output_format != "保持原格式":
+            format_map = {
+                "PNG": ".png",
+                "JPEG": ".jpg",
+                "BMP": ".bmp",
+                "TIFF": ".tiff"
+            }
+            default_ext = format_map.get(output_format, ".png")
+        else:
+            default_ext = os.path.splitext(current_image_path)[1]
 
         file_path = filedialog.asksaveasfilename(
             title="保存图片",
             filetypes=filetypes,
-            defaultextension=ext,
-            initialdir=dir_path,
+            defaultextension=default_ext,
+            initialdir=desktop_path,
             initialfile=default_filename
         )
 
@@ -300,12 +413,19 @@ class MainWindow:
             messagebox.showwarning("警告", "请先导入要处理的图片")
             return
 
-        # 默认导出到第一个图片的文件夹
-        default_dir = os.path.dirname(self.image_list[0]) if self.image_list else None
+        # 为防止覆盖原图，默认导出到桌面而非原文件夹
+        try:
+            desktop_path = os.path.join(Path.home(), 'Desktop')
+            if not os.path.exists(desktop_path):
+                desktop_path = os.path.join(Path.home(), 'Documents')
+                if not os.path.exists(desktop_path):
+                    desktop_path = str(Path.home())
+        except:
+            desktop_path = str(Path.home())
 
         folder = filedialog.askdirectory(
             title="选择输出文件夹",
-            initialdir=default_dir
+            initialdir=desktop_path
         )
         if folder:
             self.batch_export_images(folder)
@@ -353,25 +473,254 @@ class MainWindow:
             self.update_status("水印设置已重置")
             messagebox.showinfo("完成", "水印设置已重置为默认值")
 
+    def setup_drag_drop(self):
+        """设置拖拽功能和键盘快捷键"""
+        # 添加键盘快捷键支持
+        self.root.bind('<Control-o>', lambda e: self.on_import_images())
+        self.root.bind('<Control-s>', lambda e: self.on_export_current())
+        self.root.bind('<Control-b>', lambda e: self.on_batch_export())
+        self.root.bind('<Control-r>', lambda e: self.on_reset_watermark())
+        self.root.bind('<Delete>', lambda e: self.on_clear_list())
+
+        # 设置窗口为可聚焦以接收键盘事件
+        self.root.focus_set()
+
+        # 在状态栏显示快捷键提示
+        self.update_status("快捷键: Ctrl+O导入, Ctrl+S导出当前, Ctrl+B批量导出, Ctrl+R重置, Del清空列表")
+
+    def on_window_click(self, event):
+        """窗口点击事件处理"""
+        # 这里可以添加更多的窗口交互逻辑
+        pass
+
     def on_drop_files(self, event):
         """拖拽文件事件处理"""
-        # 暂时禁用拖拽功能
-        pass
+        try:
+            # 处理拖拽的文件路径
+            files = event.data.split()
+            image_files = []
+
+            for file_path in files:
+                # 清理路径格式
+                file_path = file_path.strip('{}').strip()
+                if os.path.exists(file_path):
+                    ext = os.path.splitext(file_path)[1].lower()
+                    if ext in ImageProcessor.SUPPORTED_FORMATS['input']:
+                        image_files.append(file_path)
+
+            if image_files:
+                self.add_images(image_files)
+                self.update_status(f"已通过拖拽导入 {len(image_files)} 张图片")
+            else:
+                messagebox.showwarning("警告", "拖拽的文件中没有支持的图片格式")
+
+        except Exception as e:
+            print(f"拖拽文件处理失败: {e}")
+            messagebox.showerror("错误", "拖拽文件处理失败")
 
     def on_save_template(self):
         """保存模板事件处理"""
-        # TODO: 实现模板保存对话框
-        pass
+        # 获取当前水印配置
+        watermark_config = self.get_current_watermark_config()
+
+        # 创建简单的输入对话框
+        template_name = tk.simpledialog.askstring(
+            "保存水印模板",
+            "请输入模板名称:",
+            initialvalue="我的水印模板"
+        )
+
+        if template_name:
+            try:
+                # 获取可序列化的配置
+                serializable_config = self.get_serializable_watermark_config()
+
+                # 保存模板到配置文件
+                templates = self.config.load_templates()
+                templates[template_name] = serializable_config
+                self.config.save_templates(templates)
+
+                messagebox.showinfo("成功", f"模板 '{template_name}' 已保存")
+                self.update_status(f"已保存水印模板: {template_name}")
+
+            except Exception as e:
+                print(f"保存模板失败: {e}")
+                messagebox.showerror("错误", f"保存模板失败: {e}")
 
     def on_load_template(self):
         """加载模板事件处理"""
-        # TODO: 实现模板加载对话框
-        pass
+        try:
+            # 获取所有模板
+            templates = self.config.load_templates()
+
+            if not templates:
+                messagebox.showinfo("提示", "暂无保存的模板")
+                return
+
+            # 创建模板选择对话框
+            template_names = list(templates.keys())
+            selected_template = self.show_template_selection_dialog(template_names, "加载水印模板")
+
+            if selected_template:
+                # 加载选中的模板
+                template_config = templates[selected_template]
+                self.load_watermark_config(template_config)
+
+                messagebox.showinfo("成功", f"模板 '{selected_template}' 已加载")
+                self.update_status(f"已加载水印模板: {selected_template}")
+
+        except Exception as e:
+            print(f"加载模板失败: {e}")
+            messagebox.showerror("错误", f"加载模板失败: {e}")
 
     def on_manage_templates(self):
         """管理模板事件处理"""
-        # TODO: 实现模板管理对话框
-        pass
+        try:
+            # 获取所有模板
+            templates = self.config.load_templates()
+
+            if not templates:
+                messagebox.showinfo("提示", "暂无保存的模板")
+                return
+
+            # 创建模板管理对话框
+            self.show_template_management_dialog(templates)
+
+        except Exception as e:
+            print(f"管理模板失败: {e}")
+            messagebox.showerror("错误", f"管理模板失败: {e}")
+
+    def show_template_selection_dialog(self, template_names: List[str], title: str) -> Optional[str]:
+        """显示模板选择对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(title)
+        dialog.geometry("300x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # 居中显示
+        dialog.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+
+        selected_template = None
+
+        # 创建列表框
+        frame = ttk.Frame(dialog)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        ttk.Label(frame, text="请选择要加载的模板:").pack(anchor='w', pady=(0, 5))
+
+        listbox = tk.Listbox(frame, height=8)
+        listbox.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        for name in template_names:
+            listbox.insert(tk.END, name)
+
+        # 按钮框架
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X)
+
+        def on_load():
+            selection = listbox.curselection()
+            if selection:
+                nonlocal selected_template
+                selected_template = template_names[selection[0]]
+                dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        ttk.Button(button_frame, text="加载", command=on_load).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="取消", command=on_cancel).pack(side=tk.RIGHT)
+
+        # 双击加载
+        listbox.bind('<Double-Button-1>', lambda e: on_load())
+
+        dialog.wait_window()
+        return selected_template
+
+    def show_template_management_dialog(self, templates: dict):
+        """显示模板管理对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("管理水印模板")
+        dialog.geometry("400x300")
+        dialog.resizable(True, True)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # 居中显示
+        dialog.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+
+        # 创建界面
+        frame = ttk.Frame(dialog)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        ttk.Label(frame, text="已保存的模板:").pack(anchor='w', pady=(0, 5))
+
+        # 列表框和滚动条
+        list_frame = ttk.Frame(frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        listbox = tk.Listbox(list_frame)
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
+        listbox.config(yscrollcommand=scrollbar.set)
+
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        template_names = list(templates.keys())
+        for name in template_names:
+            listbox.insert(tk.END, name)
+
+        # 按钮框架
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X)
+
+        def on_load():
+            selection = listbox.curselection()
+            if selection:
+                selected_name = template_names[selection[0]]
+                template_config = templates[selected_name]
+                self.load_watermark_config(template_config)
+                messagebox.showinfo("成功", f"模板 '{selected_name}' 已加载")
+                self.update_status(f"已加载水印模板: {selected_name}")
+
+        def on_delete():
+            selection = listbox.curselection()
+            if selection:
+                selected_name = template_names[selection[0]]
+                result = messagebox.askyesno("确认删除", f"确定要删除模板 '{selected_name}' 吗？")
+                if result:
+                    del templates[selected_name]
+                    self.config.save_templates(templates)
+                    listbox.delete(selection[0])
+                    template_names.pop(selection[0])
+                    messagebox.showinfo("成功", f"模板 '{selected_name}' 已删除")
+
+        def on_close():
+            dialog.destroy()
+
+        ttk.Button(button_frame, text="加载", command=on_load).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="删除", command=on_delete).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="关闭", command=on_close).pack(side=tk.RIGHT)
+
+        dialog.wait_window()
+
+    def load_watermark_config(self, config: dict):
+        """加载水印配置到界面"""
+        try:
+            # 使用水印面板的加载方法
+            self.watermark_panel.load_watermark_config(config)
+
+            # 模板加载后，关闭水印预览以避免自动应用到所有图片
+            self.watermark_panel.show_preview.set(False)
+
+            # 更新预览（但不应用水印，因为预览已关闭）
+            if self.current_image_index >= 0:
+                self.update_preview()
+
+        except Exception as e:
+            print(f"加载配置失败: {e}")
 
     def on_about(self):
         """关于对话框"""
@@ -408,11 +757,25 @@ class MainWindow:
             # 重置图片
             self.image_processor.reset_image()
 
-            # 应用水印
-            self.apply_current_watermark()
+            # 检查是否显示水印预览
+            show_watermark = self.watermark_panel.show_preview.get()
 
-            # 更新预览显示
-            self.image_panel.update_preview(self.image_processor.get_current_image())
+            # 如果启用预览，应用水印到图片上
+            if show_watermark:
+                self.apply_current_watermark()
+
+            # 更新预览显示（显示带或不带水印的图片）
+            preview_image = self.image_processor.get_current_image()
+            self.image_panel.update_preview(preview_image)
+
+            # 检查是否显示可拖拽的水印叠加层
+            show_indicator = self.watermark_panel.show_position_indicator.get()
+            self.image_panel.show_watermark_indicator = show_indicator
+
+            # 如果启用了拖拽指示器，添加水印叠加层
+            if show_indicator:
+                watermark_config = self.get_current_watermark_config()
+                self.image_panel.add_watermark_overlay(watermark_config)
 
     def apply_current_watermark(self):
         """应用当前水印设置到图片"""
@@ -519,7 +882,11 @@ class MainWindow:
 
     def export_single_image(self, output_path: str):
         """导出单张图片"""
-        if self.image_processor.save_image(output_path):
+        # 获取JPEG质量设置
+        export_settings = self.export_panel.get_export_settings()
+        jpeg_quality = export_settings['format']['jpeg_quality']
+
+        if self.image_processor.save_image(output_path, quality=jpeg_quality):
             self.update_status(f"图片已保存: {os.path.basename(output_path)}")
             messagebox.showinfo("成功", "图片导出成功！")
         else:
@@ -531,17 +898,10 @@ class MainWindow:
             messagebox.showwarning("警告", "没有图片需要导出")
             return
 
-        # 获取当前水印配置
+        # 获取当前水印配置和导出设置
         watermark_config = self.get_current_watermark_config()
-
-        # 获取命名规则
-        naming_rule = {
-            'format': '.png',  # 默认输出PNG格式
-            'add_prefix': False,
-            'prefix': 'wm_',
-            'add_suffix': True,
-            'suffix': '_watermarked'
-        }
+        export_settings = self.export_panel.get_export_settings()
+        jpeg_quality = export_settings['format']['jpeg_quality']
 
         # 简单的批量处理
         success_count = 0
@@ -571,14 +931,13 @@ class MainWindow:
                     else:
                         print(f"未知水印类型: {watermark_config['type']}")  # 调试信息
 
-                    # 生成输出文件名
-                    input_file = Path(image_path)
-                    output_filename = input_file.stem + naming_rule['suffix'] + naming_rule['format']
+                    # 使用导出设置生成输出文件名
+                    output_filename = self.export_panel.generate_filename(image_path)
                     output_path = os.path.join(output_dir, output_filename)
                     print(f"保存到: {output_path}")  # 调试信息
 
-                    # 保存图片
-                    if processor.save_image(output_path):
+                    # 保存图片（使用JPEG质量设置）
+                    if processor.save_image(output_path, quality=jpeg_quality):
                         print(f"保存成功: {output_path}")  # 调试信息
                         success_count += 1
                     else:
