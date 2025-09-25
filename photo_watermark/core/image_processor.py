@@ -47,7 +47,8 @@ class ImageProcessor:
         font_path: Optional[str] = None,
         font_size: int = 36,
         color: Tuple[int, int, int] = (255, 255, 255),
-        opacity: int = 128
+        opacity: int = 128,
+        rotation: float = 0.0
     ) -> bool:
         """
         添加文本水印
@@ -59,6 +60,7 @@ class ImageProcessor:
             font_size: 字体大小
             color: 文字颜色 RGB
             opacity: 透明度 (0-255)
+            rotation: 旋转角度 (0-360)
 
         Returns:
             bool: 添加成功返回True
@@ -76,13 +78,60 @@ class ImageProcessor:
                 if font_path and os.path.exists(font_path):
                     font = ImageFont.truetype(font_path, font_size)
                 else:
-                    font = ImageFont.load_default()
+                    # 使用默认字体但设置大小
+                    try:
+                        # 尝试使用系统默认字体
+                        font = ImageFont.truetype("arial.ttf", font_size)
+                    except:
+                        try:
+                            # Windows默认字体
+                            font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", font_size)
+                        except:
+                            try:
+                                # 使用PIL的默认字体并调整大小
+                                font = ImageFont.load_default()
+                                # 如果是默认字体，创建一个临时的文本图层来模拟大小调整
+                            except:
+                                font = None
             except:
+                font = None
+
+            # 创建文本图层
+            if font:
+                # 获取文本尺寸
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            else:
+                # 如果没有字体，估算文本尺寸
+                text_width = len(text) * int(font_size * 0.6)
+                text_height = int(font_size * 1.2)
                 font = ImageFont.load_default()
 
-            # 绘制文本
-            text_color = (*color, opacity)
-            draw.text(position, text, font=font, fill=text_color)
+            # 如果需要旋转，创建单独的文本图像
+            if rotation != 0:
+                # 创建足够大的临时图像来容纳旋转的文本
+                temp_size = int(max(text_width, text_height) * 1.5)
+                temp_img = Image.new('RGBA', (temp_size, temp_size), (0, 0, 0, 0))
+                temp_draw = ImageDraw.Draw(temp_img)
+
+                # 在临时图像中心绘制文本
+                text_color = (*color, opacity)
+                temp_x = (temp_size - text_width) // 2
+                temp_y = (temp_size - text_height) // 2
+                temp_draw.text((temp_x, temp_y), text, font=font, fill=text_color)
+
+                # 旋转文本图像
+                rotated_text = temp_img.rotate(rotation, expand=True)
+
+                # 将旋转后的文本粘贴到水印图层
+                paste_x = position[0] - rotated_text.width // 2
+                paste_y = position[1] - rotated_text.height // 2
+                watermark.paste(rotated_text, (paste_x, paste_y), rotated_text)
+            else:
+                # 直接绘制文本（无旋转）
+                text_color = (*color, opacity)
+                draw.text(position, text, font=font, fill=text_color)
 
             # 合并图层
             if self.current_image.mode != 'RGBA':

@@ -382,7 +382,8 @@ class MainWindow:
             position=position,
             font_size=font_size,
             color=text_config.get('color', (255, 255, 255)),
-            opacity=text_config.get('opacity', 128)
+            opacity=text_config.get('opacity', 128),
+            rotation=layout_config.get('rotation', 0.0)
         )
 
     def apply_image_watermark(self, config: dict):
@@ -521,7 +522,8 @@ class MainWindow:
             position=position,
             font_size=font_size,
             color=text_config.get('color', (255, 255, 255)),
-            opacity=text_config.get('opacity', 128)
+            opacity=text_config.get('opacity', 128),
+            rotation=layout_config.get('rotation', 0.0)
         )
 
     def run(self):
